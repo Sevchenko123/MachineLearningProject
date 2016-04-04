@@ -1,0 +1,93 @@
+---
+title: "Practical Machine Learning Project"
+author: "Samir Yelne"
+date: "April 3, 2016"
+output: 
+ html_document:
+  keep_md: yes
+---
+
+##Introduction
+
+**Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement—a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).**
+
+##Load the Data
+
+```{r,echo=TRUE,warning=FALSE}
+train <- read.csv("pml-training.csv",sep=",",na.strings=c("", "NA"))
+test <- read.csv("pml-testing.csv",sep=",",na.strings=c("", "NA"))
+```
+
+##Clean the Data
+
+**Once the data is loaded the next step is to clean the data. So, we need to remove all the columns with NA values and also remove the columns/features which are not present in the test data.**
+
+```{r,echo=TRUE,warning=FALSE}
+features <- names(test[,colSums(is.na(test))==0])[8:59]
+train <- train[,c(features,"classe")]
+test <- test[,c(features,"problem_id")]
+```
+
+##Bootstrap Sampling
+
+**We can divide the data into two partition of 70% and 30% for training and testing.**
+
+```{r,echo=TRUE,warning=FALSE}
+library(caret)
+set.seed(1024)
+inTrain <- createDataPartition(train$classe,p=0.70,list=F)
+training <- train[inTrain,]
+testing <- train[-inTrain,]
+```
+
+#Feature Selection
+
+**The features which are highly correlated are dropped.**
+
+```{r,echo=TRUE,warning=FALSE}
+o <- which(names(training) == "classe")
+hc <- findCorrelation(abs(cor(training[,-o])),0.90)
+hcf <- names(training)[hc]
+training <- training[,-hc]
+o <- which(names(training)=="classe")
+```
+**The features with correlation above 0.9 are accel_belt_z, roll_belt,accel_belt_y, accel_belt_x, gyros_arm_x.**
+
+#Building a Random Forest Model and observing the Feature Importance Plot
+
+```{r,echo=TRUE,warning=FALSE}
+library(randomForest)
+rf <- randomForest(classe~.,data=training,ntree=1000,importance=T)
+varImpPlot(rf,main="Random Forest Model")
+```
+
+**The Feature Importance plot tells us at a glance the most important features in the model for predicting the response variable. The Mean decrease Accuracy and the Mean Decrease Gini are two index which tells us about node purity in the Random Forest Model. From the plot the features yaw_belt, magnet_dumbbell_z, pitch_belt, pitch_forearm, magnet_dumbbell_y are some of the top features for predicting the "classe" variable.**
+
+#Building a KNN Model 
+
+```{r,echo=TRUE,warning=FALSE}
+library(caret)
+cknn <- trainControl(method="adaptive_cv")
+knn <- train(classe~.,training,method="knn",trControl=cknn)
+```
+
+#Comparing Random Forest and KNN Model on the testing data based on Confusion Matrix 
+```{r,echo=TRUE,warning=FALSE}
+fitrf <- predict(rf,testing)
+confusionMatrix(fitrf,testing$classe)
+```
+
+```{r,echo=TRUE,warning=FALSE}
+fitknn <- predict(knn,testing)
+confusionMatrix(fitknn,testing$class)
+```
+
+**Thus from the above Confusion Matrix for Random Forest and Knn Model the Random Forest Model performs better based on Accuracy, Kappa Value, Sensitivity, Specificity, Positive and Negative Predictive Value and Balanced Accuracy.** 
+
+**Lastly I use the Random Forest Model to predict on the 20 cases submitted to coursera**
+
+```{r,echo=FALSE,warning=FALSE}
+rf1
+```
+
+
